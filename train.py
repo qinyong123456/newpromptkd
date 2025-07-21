@@ -1,5 +1,8 @@
 import argparse
 import torch
+import sys
+sys.path.append("/kaggle/working/PromptKD/Dassl.pytorch")
+# 后续原导入代码
 
 from dassl.utils import setup_logger, set_random_seed, collect_env_info
 from dassl.config import get_cfg_default
