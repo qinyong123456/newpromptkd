@@ -521,7 +521,13 @@ class PromptKD(TrainerX):
 
         # 计算学生模型的logits
         if self.train_modal == "base2novel":
-            output = logit_scale * image_ft @ tea_text_features[:math.ceil(self.n_cls / 2),:].t()
+            # 修改此处，确保输出类别数与标签匹配
+            # 获取实际需要的类别数（标签最大值+1）
+            required_classes = label.max().item() + 1
+            # 确保不超过总类别数的一半
+            required_classes = min(required_classes, math.ceil(self.n_cls / 2))
+            output = logit_scale * image_ft @ tea_text_features[:required_classes,:].t()
+            print(f"Using {required_classes} classes for output")
         elif self.train_modal == "cross":
             output = logit_scale * image_ft @ tea_text_features.t()
 
