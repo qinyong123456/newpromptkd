@@ -407,11 +407,25 @@ class PromptKD(TrainerX):
             
             stu_logits = logit_scale * image_ft @ tea_text_features.t().detach()
             
+            # 动态温度设定：基于教师模型权重标准差
+            teacher_weights = next(self.model_teacher.parameters())
+            dynamic_temperature = torch.std(teacher_weights) * self.temperature
+
+            # Z-score标准化logits
+            def standardize_logits(logits):
+                mean = logits.mean(dim=1, keepdim=True)
+                std = logits.std(dim=1, keepdim=True)
+                return (logits - mean) / (std + 1e-8)
+
+            stu_logits_std = standardize_logits(stu_logits)
+            tea_logits_std = standardize_logits(tea_logits)
+
+            # 使用标准化logits和动态温度计算KD损失
             L_ukd = F.kl_div(
-                F.log_softmax(stu_logits / self.temperature, dim=1),
-                F.softmax(tea_logits / self.temperature, dim=1),
+                F.log_softmax(stu_logits_std / dynamic_temperature, dim=1),
+                F.softmax(tea_logits_std / dynamic_temperature, dim=1),
                 reduction='sum',
-            ) * (self.temperature * self.temperature) / stu_logits.numel()  # 求平均
+            ) * (dynamic_temperature * dynamic_temperature) / stu_logits_std.numel()  # 求平均
             
             loss = self.cfg.TRAINER.PROMPTKD.KD_WEIGHT * L_ukd
             optim.zero_grad()
