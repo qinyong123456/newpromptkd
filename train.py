@@ -155,8 +155,11 @@ def extend_cfg(cfg):
     cfg.TRAINER.PROMPTKD.KD_WEIGHT= 1.0
     cfg.TRAINER.PROMPTKD.TEMPERATURE = 1.0
     cfg.TRAINER.PROMPTKD.TEACHER_NAME = "ViT/L-14"
-    
-    
+    # 添加新配置
+    cfg.TRAINER.PROMPTKD.LOGIT_STANDARDIZATION = True
+    cfg.TRAINER.PROMPTKD.ADAPTIVE_TEMPERATURE = True
+    cfg.TRAINER.PROMPTKD.TEMP_LEARNING_RATE = 1e-4
+
 def setup_cfg(args):
     cfg = get_cfg_default()
     extend_cfg(cfg)
