@@ -286,6 +286,29 @@ class CustomCLIP_teacher(nn.Module):
         return image_features, text_features, logits
 
 
+// 添加Z-score标准化函数
+def normalize(logit):
+    mean = logit.mean(dim=-1, keepdims=True)
+    stdv = logit.std(dim=-1, keepdims=True)
+    return (logit - mean) / (1e-7 + stdv)
+
+// 添加自适应温度计算模块
+class AdaptiveTemperature(nn.Module):
+    def __init__(self, input_dim=512):
+        super().__init__()
+        self.mlp = nn.Sequential(
+            nn.Linear(input_dim, 128),
+            nn.ReLU(),
+            nn.Linear(128, 1),
+            nn.Sigmoid()
+        )
+    def forward(self, logit_t, logit_s):
+        # 使用教师和学生logit的标准差计算温度
+        std_t = logit_t.std(dim=-1).mean()
+        std_s = logit_s.std(dim=-1).mean()
+        temp = self.mlp(torch.cat([std_t.unsqueeze(0), std_s.unsqueeze(0)]))
+        return 0.1 + 9.9 * temp  # 将温度限制在0.1-10范围内
+
 @TRAINER_REGISTRY.register()
 class PromptKD(TrainerX):
     def check_cfg(self, cfg):
@@ -387,10 +410,29 @@ class PromptKD(TrainerX):
     def forward_backward(self, batch):
         image, label = self.parse_batch_train(batch)
 
+        # 获取教师和学生的logit
         with torch.no_grad():
-            tea_image_features, tea_text_features, tea_logits = self.model_teacher(image)
+            feat_t, text_t, logit_t = self.model_teacher(image)
+        feat_s, logit_s = self.model_student(image)
 
-        model = self.model
+        # 计算自适应温度
+        if self.cfg.TRAINER.PROMPTKD.ADAPTIVE_TEMPERATURE:
+            temp = self.temp_module(logit_t, logit_s)
+        else:
+            temp = self.cfg.TRAINER.PROMPTKD.TEMPERATURE
+
+        # 应用Z-score标准化
+        if self.cfg.TRAINER.PROMPTKD.LOGIT_STANDARDIZATION:
+            logit_s = normalize(logit_s)
+            logit_t = normalize(logit_t)
+
+        # 计算KD损失
+        loss_ce = F.cross_entropy(logit_s, label)
+        loss_kd = F.kl_div(F.log_softmax(logit_s/temp, dim=1),
+                          F.softmax(logit_t/temp, dim=1),
+                          reduction='batchmean') * (temp**2)
+
+        loss = self.cfg.TRAINER.PROMPTKD.CE_WEIGHT * loss_ce + self.cfg.TRAINER.PROMPTKD.KD_WEIGHT * loss_kd
         optim = self.optim
         scaler = self.scaler
         
@@ -407,20 +449,11 @@ class PromptKD(TrainerX):
             
             stu_logits = logit_scale * image_ft @ tea_text_features.t().detach()
             
-            # 动态温度设定：基于教师模型权重标准差
-            teacher_weights = next(self.model_teacher.parameters())
-            dynamic_temperature = torch.std(teacher_weights) * self.temperature
-
-            # Z-score标准化logits
-            stu_logits_std = self.standardize_logits(stu_logits)
-            tea_logits_std = self.standardize_logits(tea_logits)
-
-            # 使用标准化logits和动态温度计算KD损失
             L_ukd = F.kl_div(
-                F.log_softmax(stu_logits_std / dynamic_temperature, dim=1),
-                F.softmax(tea_logits_std / dynamic_temperature, dim=1),
+                F.log_softmax(stu_logits / self.temperature, dim=1),
+                F.softmax(tea_logits / self.temperature, dim=1),
                 reduction='sum',
-            ) * (dynamic_temperature * dynamic_temperature) / stu_logits_std.numel()  # 求平均
+            ) * (self.temperature * self.temperature) / stu_logits.numel()  # 求平均
             
             loss = self.cfg.TRAINER.PROMPTKD.KD_WEIGHT * L_ukd
             optim.zero_grad()
@@ -440,12 +473,6 @@ class PromptKD(TrainerX):
         input = input.to(self.device)
         label = label.to(self.device)
         return input, label
-
-    @staticmethod
-    def standardize_logits(logits):
-        mean = logits.mean(dim=1, keepdim=True)
-        std = logits.std(dim=1, keepdim=True)
-        return (logits - mean) / (std + 1e-8)
 
     def load_model(self, directory, epoch=None):
         if not directory:
@@ -520,42 +547,9 @@ class PromptKD(TrainerX):
             elif self.train_modal == "cross" :
                 output = logit_scale * image_ft @ tea_text_features.t()
             
-            output_std = self.standardize_logits(output)
-            self.evaluator.process(output_std, label) 
+            self.evaluator.process(output, label) 
 
         results = self.evaluator.evaluate()
-
-        # Calculate Base, Novel, and HM metrics
-        if self.train_modal == "base2novel":
-            # Get predictions and labels
-            all_preds = self.evaluator._predictions
-            all_labels = self.evaluator._labels
-            total_base = total_novel = correct_base = correct_novel = 0
-
-            # Split into base and novel classes
-            base_cls = math.ceil(self.n_cls / 2)
-            for pred, label in zip(all_preds, all_labels):
-                if label < base_cls:
-                    total_base += 1
-                    if pred == label:
-                        correct_base += 1
-                else:
-                    total_novel += 1
-                    if pred == label:
-                        correct_novel += 1
-
-            # Compute metrics
-            base_acc = correct_base / total_base * 100 if total_base > 0 else 0
-            novel_acc = correct_novel / total_novel * 100 if total_novel > 0 else 0
-            hm = 2 * base_acc * novel_acc / (base_acc + novel_acc) if (base_acc + novel_acc) > 0 else 0
-
-            # Log metrics
-            results['Base'] = base_acc
-            results['Novel'] = novel_acc
-            results['HM'] = hm
-            print(f"* Base: {base_acc:.1f}%")
-            print(f"* Novel: {novel_acc:.1f}%")
-            print(f"* HM: {hm:.1f}%")
 
         for k, v in results.items():
             tag = f"{split}/{k}"
