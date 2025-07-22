@@ -407,8 +407,10 @@ class PromptKD(TrainerX):
 
         if self.cfg.TRAINER.PROMPTKD.ADAPTIVE_TEMPERATURE:
             self.temperature = self.cfg.TRAINER.PROMPTKD.TEMPERATURE
-             # 初始化自适应温度模块
+            # 初始化自适应温度模块
             self.temp_module = AdaptiveTemperature().to(self.device)
+        else:
+            self.temperature = self.cfg.TRAINER.PROMPTKD.TEMPERATURE
 
             temp = self.temp_module(logit_t, logit_s)
         else:
