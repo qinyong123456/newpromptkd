@@ -412,56 +412,8 @@ class PromptKD(TrainerX):
         else:
             self.temperature = self.cfg.TRAINER.PROMPTKD.TEMPERATURE
 
-        # 应用Z-score标准化
-        if self.cfg.TRAINER.PROMPTKD.LOGIT_STANDARDIZATION:
-            logit_s = normalize(logit_s)
-            logit_t = normalize(logit_t)
-
-        # 应用Z-score标准化
-        if self.cfg.TRAINER.PROMPTKD.LOGIT_STANDARDIZATION:
-            logit_s = normalize(logit_s)
-            logit_t = normalize(logit_t)
-
-        # 计算KD损失
-        loss_ce = F.cross_entropy(logit_s, label)
-        loss_kd = F.kl_div(F.log_softmax(logit_s/temp, dim=1),
-                          F.softmax(logit_t/temp, dim=1),
-                          reduction='batchmean') * (temp**2)
-
-        loss = self.cfg.TRAINER.PROMPTKD.CE_WEIGHT * loss_ce + self.cfg.TRAINER.PROMPTKD.KD_WEIGHT * loss_kd
-        optim = self.optim
-        scaler = self.scaler
-        
-        prec = self.cfg.TRAINER.PROMPTKD.PREC
-        if prec == "amp":
-            with autocast():
-                loss = model(image, label)
-            optim.zero_grad()
-            scaler.scale(loss).backward()
-            scaler.step(optim)
-            scaler.update()
-        else:
-            image_ft, logit_scale = model(image, label)
-            
-            stu_logits = logit_scale * image_ft @ tea_text_features.t().detach()
-            
-            L_ukd = F.kl_div(
-                F.log_softmax(stu_logits / self.temperature, dim=1),
-                F.softmax(tea_logits / self.temperature, dim=1),
-                reduction='sum',
-            ) * (self.temperature * self.temperature) / stu_logits.numel()  # 求平均
-            
-            loss = self.cfg.TRAINER.PROMPTKD.KD_WEIGHT * L_ukd
-            optim.zero_grad()
-            loss.backward()
-            optim.step()
-
-        loss_summary = {"loss": loss.item()}
-
-        if (self.batch_idx + 1) == self.num_batches:
-            self.update_lr()
-            
-        return loss_summary
+        # 删除以下代码块
+        # // ... 移除所有涉及 logit_s、logit_t 和损失计算的代码 ...
 
     def parse_batch_train(self, batch):
         input = batch["img"]
