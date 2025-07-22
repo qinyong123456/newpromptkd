@@ -412,9 +412,6 @@ class PromptKD(TrainerX):
         else:
             self.temperature = self.cfg.TRAINER.PROMPTKD.TEMPERATURE
 
-        # 删除以下代码块
-        # // ... 移除所有涉及 logit_s、logit_t 和损失计算的代码 ...
-
     def parse_batch_train(self, batch):
         input = batch["img"]
         label = batch["label"]
@@ -504,4 +501,62 @@ class PromptKD(TrainerX):
             self.write_scalar(tag, v, self.epoch)
 
         return list(results.values())[0]
+
+    def forward_backward(self, batch):
+        input, label = self.parse_batch_train(batch)
+        loss_summary = {}
+
+        # 教师模型前向传播
+        with torch.no_grad():
+            tea_image_features, tea_text_features, tea_logits = self.model_teacher(input, label)
+
+        # 学生模型前向传播
+        image_ft, logit_scale = self.model(input, label)
+
+        # 计算学生模型的logits
+        if self.train_modal == "base2novel":
+            output = logit_scale * image_ft @ tea_text_features[:math.ceil(self.n_cls / 2),:].t()
+        elif self.train_modal == "cross":
+            output = logit_scale * image_ft @ tea_text_features.t()
+
+        # 计算分类损失
+        loss_cls = F.cross_entropy(output, label)
+        loss_summary['loss_cls'] = loss_cls.item()
+
+        # 知识蒸馏损失
+        if self.cfg.TRAINER.PROMPTKD.LOGIT_STANDARDIZATION:
+            # 对教师和学生的logits进行标准化
+            tea_logits_norm = normalize(tea_logits)
+            student_logits_norm = normalize(output)
+        else:
+            tea_logits_norm = tea_logits
+            student_logits_norm = output
+
+        # 计算温度
+        if self.cfg.TRAINER.PROMPTKD.ADAPTIVE_TEMPERATURE:
+            temp = self.temp_module(tea_logits_norm, student_logits_norm)
+        else:
+            temp = self.temperature
+
+        # 计算KL散度损失
+        loss_kd = F.kl_div(F.log_softmax(student_logits_norm / temp, dim=1),
+                           F.softmax(tea_logits_norm / temp, dim=1),
+                           reduction='batchmean') * (temp ** 2)
+        loss_summary['loss_kd'] = loss_kd.item()
+
+        # 总损失
+        loss = loss_cls + self.cfg.TRAINER.PROMPTKD.KD_WEIGHT * loss_kd
+        loss_summary['loss'] = loss.item()
+
+        # 反向传播
+        self.model.zero_grad()
+        if self.cfg.TRAINER.PROMPTKD.PREC == 'amp':
+            self.scaler.scale(loss).backward()
+            self.scaler.step(self.optim)
+            self.scaler.update()
+        else:
+            loss.backward()
+            self.optim.step()
+
+        return loss_summary
 
