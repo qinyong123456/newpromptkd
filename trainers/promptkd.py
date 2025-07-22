@@ -506,6 +506,12 @@ class PromptKD(TrainerX):
         input, label = self.parse_batch_train(batch)
         loss_summary = {}
 
+        # 添加调试信息
+        print(f"Input shape: {input.shape}")
+        print(f"Label shape: {label.shape}")
+        print(f"Label min: {label.min()}, Label max: {label.max()}")
+        print(f"Number of classes: {self.n_cls}")
+
         # 教师模型前向传播
         with torch.no_grad():
             tea_image_features, tea_text_features, tea_logits = self.model_teacher(input, label)
@@ -518,6 +524,9 @@ class PromptKD(TrainerX):
             output = logit_scale * image_ft @ tea_text_features[:math.ceil(self.n_cls / 2),:].t()
         elif self.train_modal == "cross":
             output = logit_scale * image_ft @ tea_text_features.t()
+
+        # 添加调试信息
+        print(f"Output shape: {output.shape}")
 
         # 计算分类损失
         loss_cls = F.cross_entropy(output, label)
