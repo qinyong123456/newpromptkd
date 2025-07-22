@@ -27,5 +27,5 @@ CUDA_VISIBLE_DEVICES=0 python train.py \
     TRAINER.PROMPTKD.TEMPERATURE 1.0 \
     TRAINER.PROMPTKD.KD_WEIGHT 1000.0 \
     
-    --trainer.promptkd.logit_standardization True \
-    --trainer.promptkd.adaptive_temperature True
+    TRAINER.PROMPTKD.LOGIT_STANDARDIZATION True \
+    TRAINER.PROMPTKD.ADAPTIVE_TEMPERATURE True
