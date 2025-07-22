@@ -412,9 +412,10 @@ class PromptKD(TrainerX):
         else:
             self.temperature = self.cfg.TRAINER.PROMPTKD.TEMPERATURE
 
-            temp = self.temp_module(logit_t, logit_s)
-        else:
-            temp = self.cfg.TRAINER.PROMPTKD.TEMPERATURE
+        # 应用Z-score标准化
+        if self.cfg.TRAINER.PROMPTKD.LOGIT_STANDARDIZATION:
+            logit_s = normalize(logit_s)
+            logit_t = normalize(logit_t)
 
         # 应用Z-score标准化
         if self.cfg.TRAINER.PROMPTKD.LOGIT_STANDARDIZATION:
