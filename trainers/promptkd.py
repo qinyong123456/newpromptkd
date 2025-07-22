@@ -405,21 +405,11 @@ class PromptKD(TrainerX):
             print(f"Multiple GPUs detected (n_gpus={device_count}), use all of them!")
             self.model = nn.DataParallel(self.model)
 
-        self.temperature = cfg.TRAINER.PROMPTKD.TEMPERATURE
-    
-    def forward_backward(self, batch):
-        image, label = self.parse_batch_train(batch)
-
-        # 获取教师和学生的logit
-        with torch.no_grad():
-            feat_t, text_t, logit_t = self.model_teacher(image)
-        feat_s, logit_s = self.model(image)
-
-        # 计算自适应温度
         if self.cfg.TRAINER.PROMPTKD.ADAPTIVE_TEMPERATURE:
-            self.temperature = cfg.TRAINER.PROMPTKD.TEMPERATURE
-            # 初始化自适应温度模块
+            self.temperature = self.cfg.TRAINER.PROMPTKD.TEMPERATURE
+             # 初始化自适应温度模块
             self.temp_module = AdaptiveTemperature().to(self.device)
+
             temp = self.temp_module(logit_t, logit_s)
         else:
             temp = self.cfg.TRAINER.PROMPTKD.TEMPERATURE
