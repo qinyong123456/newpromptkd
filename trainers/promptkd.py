@@ -286,13 +286,13 @@ class CustomCLIP_teacher(nn.Module):
         return image_features, text_features, logits
 
 
-// 添加Z-score标准化函数
+# 添加Z-score标准化函数
 def normalize(logit):
     mean = logit.mean(dim=-1, keepdims=True)
     stdv = logit.std(dim=-1, keepdims=True)
     return (logit - mean) / (1e-7 + stdv)
 
-// 添加自适应温度计算模块
+# 添加自适应温度计算模块
 class AdaptiveTemperature(nn.Module):
     def __init__(self, input_dim=512):
         super().__init__()
