@@ -412,13 +412,8 @@ class PromptKD(TrainerX):
             dynamic_temperature = torch.std(teacher_weights) * self.temperature
 
             # Z-score标准化logits
-            def standardize_logits(logits):
-                mean = logits.mean(dim=1, keepdim=True)
-                std = logits.std(dim=1, keepdim=True)
-                return (logits - mean) / (std + 1e-8)
-
-            stu_logits_std = standardize_logits(stu_logits)
-            tea_logits_std = standardize_logits(tea_logits)
+            stu_logits_std = self.standardize_logits(stu_logits)
+            tea_logits_std = self.standardize_logits(tea_logits)
 
             # 使用标准化logits和动态温度计算KD损失
             L_ukd = F.kl_div(
@@ -445,6 +440,12 @@ class PromptKD(TrainerX):
         input = input.to(self.device)
         label = label.to(self.device)
         return input, label
+
+    @staticmethod
+    def standardize_logits(logits):
+        mean = logits.mean(dim=1, keepdim=True)
+        std = logits.std(dim=1, keepdim=True)
+        return (logits - mean) / (std + 1e-8)
 
     def load_model(self, directory, epoch=None):
         if not directory:
@@ -519,9 +520,42 @@ class PromptKD(TrainerX):
             elif self.train_modal == "cross" :
                 output = logit_scale * image_ft @ tea_text_features.t()
             
-            self.evaluator.process(output, label) 
+            output_std = self.standardize_logits(output)
+            self.evaluator.process(output_std, label) 
 
         results = self.evaluator.evaluate()
+
+        # Calculate Base, Novel, and HM metrics
+        if self.train_modal == "base2novel":
+            # Get predictions and labels
+            all_preds = self.evaluator._predictions
+            all_labels = self.evaluator._labels
+            total_base = total_novel = correct_base = correct_novel = 0
+
+            # Split into base and novel classes
+            base_cls = math.ceil(self.n_cls / 2)
+            for pred, label in zip(all_preds, all_labels):
+                if label < base_cls:
+                    total_base += 1
+                    if pred == label:
+                        correct_base += 1
+                else:
+                    total_novel += 1
+                    if pred == label:
+                        correct_novel += 1
+
+            # Compute metrics
+            base_acc = correct_base / total_base * 100 if total_base > 0 else 0
+            novel_acc = correct_novel / total_novel * 100 if total_novel > 0 else 0
+            hm = 2 * base_acc * novel_acc / (base_acc + novel_acc) if (base_acc + novel_acc) > 0 else 0
+
+            # Log metrics
+            results['Base'] = base_acc
+            results['Novel'] = novel_acc
+            results['HM'] = hm
+            print(f"* Base: {base_acc:.1f}%")
+            print(f"* Novel: {novel_acc:.1f}%")
+            print(f"* HM: {hm:.1f}%")
 
         for k, v in results.items():
             tag = f"{split}/{k}"
