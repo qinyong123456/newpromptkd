@@ -413,7 +413,7 @@ class PromptKD(TrainerX):
         # 获取教师和学生的logit
         with torch.no_grad():
             feat_t, text_t, logit_t = self.model_teacher(image)
-        feat_s, logit_s = self.model_student(image)
+        feat_s, logit_s = self.model(image)
 
         # 计算自适应温度
         if self.cfg.TRAINER.PROMPTKD.ADAPTIVE_TEMPERATURE:
