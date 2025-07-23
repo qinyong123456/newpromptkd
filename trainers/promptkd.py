@@ -528,7 +528,7 @@ class PromptKD(TrainerX):
             output = logit_scale * image_ft @ tea_text_features[:required_classes,:].t()
             # 同步教师logits与学生输出的类别数量
             tea_logits = tea_logits[:, :required_classes]
-            print(f"Using {required_classes} classes for output")
+            #print(f"Using {required_classes} classes for output")
         elif self.train_modal == "cross":
             output = logit_scale * image_ft @ tea_text_features.t()
 
