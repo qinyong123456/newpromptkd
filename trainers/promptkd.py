@@ -533,7 +533,7 @@ class PromptKD(TrainerX):
             output = logit_scale * image_ft @ tea_text_features.t()
 
         # 添加调试信息
-        print(f"Output shape: {output.shape}")
+        #print(f"Output shape: {output.shape}")
 
         # 计算分类损失
         loss_cls = F.cross_entropy(output, label)
