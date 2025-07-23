@@ -306,7 +306,7 @@ class AdaptiveTemperature(nn.Module):
         # 使用教师和学生logit的标准差计算温度
         std_t = logit_t.std(dim=-1).mean()
         std_s = logit_s.std(dim=-1).mean()
-        temp = self.mlp(torch.cat([std_t.unsqueeze(0), std_s.unsqueeze(0)]))
+        temp = self.mlp(torch.cat([std_t.unsqueeze(0), std_s.unsqueeze(0)]).float())
         return 0.1 + 9.9 * temp  # 将温度限制在0.1-10范围内
 
 @TRAINER_REGISTRY.register()
