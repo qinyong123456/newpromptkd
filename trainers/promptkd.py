@@ -507,10 +507,10 @@ class PromptKD(TrainerX):
         loss_summary = {}
 
         # 添加调试信息
-        print(f"Input shape: {input.shape}")
-        print(f"Label shape: {label.shape}")
-        print(f"Label min: {label.min()}, Label max: {label.max()}")
-        print(f"Number of classes: {self.n_cls}")
+        #print(f"Input shape: {input.shape}")
+        #print(f"Label shape: {label.shape}")
+        #print(f"Label min: {label.min()}, Label max: {label.max()}")
+        #print(f"Number of classes: {self.n_cls}")
 
         # 教师模型前向传播
         with torch.no_grad():
