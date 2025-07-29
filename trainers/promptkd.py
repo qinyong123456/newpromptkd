@@ -69,9 +69,9 @@ def load_clip_to_cpu_teacher(cfg, zero_shot_model=False):
 
     return model
 
-
+# 加载学生模型
 def load_clip_to_cpu(cfg, zero_shot_model=False):
-    backbone_name = cfg.MODEL.BACKBONE.NAME
+    backbone_name = cfg.TRAINER.PROMPTKD.STUDENT_NAME
     # url = clip._MODELS[backbone_name]
     model_path = './clip/ViT-B-16.pt'
     
@@ -575,4 +575,7 @@ class PromptKD(TrainerX):
             self.optim.step()
 
         return loss_summary
+teacher_design = design_details.copy()
+teacher_design['trainer'] = 'CoOp'  # 强制教师模型使用标准注意力
+model = build_model(state_dict, teacher_design)
 
