@@ -347,6 +347,10 @@ class Transformer(nn.Module):
             self.resblocks = nn.Sequential(
                 *[ResidualAttentionBlock_MaPLe(width, heads, attn_mask, design_details, text_layer, i)
                   for i in range(layers)])
+        #增加D-Mixer选项      
+        elif current_trainer == 'D-Mixer':
+            self.resblocks = nn.Sequential(*[DMixerBlock(width) for _ in range(layers)])
+       
         else:
             # Corresponds to default CoOp or CoCoOp
             assert current_trainer == 'CoOp' or current_trainer == 'CoCoOp'
@@ -694,3 +698,28 @@ def build_model(state_dict: dict, design_details):
         missing_keys, _ = model.load_state_dict(state_dict, strict=False)
         print('Weights not found for some missing keys: ', missing_keys)
     return model.eval()
+
+
+class DMixerBlock(nn.Module):
+    def __init__(self, d_model: int, kernel_size=3):
+        super().__init__()
+        self.d_model = d_model
+        self.conv1 = nn.Conv1d(d_model, d_model, kernel_size, 
+                              padding=kernel_size//2, groups=d_model)
+        self.norm = LayerNorm(d_model)
+        self.pool = nn.AvgPool1d(kernel_size=2, stride=1, padding=1)
+        self.mlp = nn.Sequential(
+            nn.Linear(d_model, d_model*4),
+            QuickGELU(),
+            nn.Linear(d_model*4, d_model)
+        )
+
+    def forward(self, x: torch.Tensor):
+        # x shape: (seq_len, batch_size, d_model)
+        x = x.permute(1, 2, 0)  # (batch_size, d_model, seq_len)
+        x = self.conv1(x) + self.pool(x)
+        x = x.permute(2, 0, 1)  # (seq_len, batch_size, d_model)
+        x = x + self.mlp(self.norm(x))
+        return x
+        # 在DMixerBlock初始化中添加
+        nn.init.kaiming_normal_(self.conv1.weight, mode='fan_out', nonlinearity='relu')
