@@ -16,13 +16,12 @@ DIR=output/base2new/train_base/${DATASET}/shots_${SHOTS}/${TRAINER}/${CFG}/seed_
 # imagenet, caltech101, eurosat, food101, oxford_pets, stanford_cars, sun397, ucf101, KD_WEIGHT:1000
 
 python train.py \
-    --config-file configs/trainers/promptkd.yaml \  # 添加这一行
+    --config-file configs/trainers/promptkd.yaml \  
     --data-dir data \
     --root ${DATA} \
     --seed ${SEED} \
     --trainer ${TRAINER} \
     --dataset-config-file configs/datasets/${DATASET}.yaml \
-    --config-file configs/trainers/${TRAINER}/${CFG}.yaml \
     --output-dir ${DIR} \
     DATASET.NUM_SHOTS ${SHOTS} \
     TRAINER.MODAL base2novel \
