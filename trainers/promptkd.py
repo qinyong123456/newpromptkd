@@ -66,7 +66,16 @@ def load_clip_to_cpu_teacher(cfg, zero_shot_model=False):
                         "language_ctx": 4}
     
     model = clip.build_model(state_dict or model.state_dict(), design_details)
-
+    # Initialize design_details for teacher model configuration
+    design_details = {
+        'trainer': 'D-Mixer',  # Match your trainer type
+        'vision_ctx': 16,      # Adjust based on your configuration
+        'language_ctx': 16,    # Adjust based on your configuration
+        'maple_length': 16     # Adjust based on your configuration
+    }
+    teacher_design = design_details.copy()
+    teacher_design['trainer'] = 'CoOp'  # 强制教师模型使用标准注意力
+    model = build_model(state_dict, teacher_design)
     return model
 
 # 加载学生模型
@@ -575,7 +584,5 @@ class PromptKD(TrainerX):
             self.optim.step()
 
         return loss_summary
-teacher_design = design_details.copy()
-teacher_design['trainer'] = 'CoOp'  # 强制教师模型使用标准注意力
-model = build_model(state_dict, teacher_design)
+
 
