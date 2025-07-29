@@ -15,7 +15,9 @@ DIR=output/base2new/train_base/${DATASET}/shots_${SHOTS}/${TRAINER}/${CFG}/seed_
 # fgvc_aircraft, oxford_flowers, dtd: KD_WEIGHT:200
 # imagenet, caltech101, eurosat, food101, oxford_pets, stanford_cars, sun397, ucf101, KD_WEIGHT:1000
 
-CUDA_VISIBLE_DEVICES=0 python train.py \
+python train.py \
+    --config-file configs/trainers/promptkd.yaml \  # 添加这一行
+    --data-dir data \
     --root ${DATA} \
     --seed ${SEED} \
     --trainer ${TRAINER} \
