@@ -171,7 +171,8 @@ def setup_cfg(args):
     # 2. From the method config file
     if args.config_file:
         cfg.merge_from_file(args.config_file)
-
+        print("Loaded config file:", args.config_file)
+        print("TRAINER.PROMPTKD config:", cfg.TRAINER.PROMPTKD)
     # 3. From input arguments
     reset_cfg(cfg, args)
 
